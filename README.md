@@ -57,13 +57,18 @@ EPS Growth
 
 
 
-
+Company
+StatementType
+LineItem
+FiscalYear
+Q1, Q2, Q3, Q4
 
 
 ------------------------------------------------------------------------------
 )store data into a SQL database
     -each stock should be its own timeseries based table
         -Fundamental data should be one database
+            -further broken down into years + quarters
         -Price should be another
 
 )set up filters for sql data
