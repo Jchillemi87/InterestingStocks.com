@@ -107,14 +107,13 @@ def statements_to_df(symbol,data):
     return df
 
 def get_data(symbol='AAPL'):
-    with open(f'./data/{symbol}.json') as json_file:
+    with open(f'/home/joseph/InterestingStocks.com/data/{symbol}.json') as json_file:
         return json.load(json_file)
 
-if __name__ == "__main__":   
+if __name__ == "__main__":
     data = get_data('AAPL')
     df=statements_to_df('AAPL',data)
-    df
+    df.to_csv('aapl.csv')
 
     #['Symbol', 'StatementType', 'LineItem', 'FiscalYear', 'Q1', 'Q2', 'Q3', 'Q4', 'Yearly']
     #db = pd.DataFrame(columns=columnNames)
-# %%
