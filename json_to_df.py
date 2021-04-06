@@ -1,4 +1,5 @@
 # %%
+from importlib.util import find_spec
 from os import name
 import pandas as pd
 import json
@@ -11,12 +12,14 @@ import calendar
 from dateutil.relativedelta import relativedelta
 
 import logging
+
+from pandas.core.tools import numeric
 logging.basicConfig(filename='example.log', encoding='utf-8')
 
 # %%
-def get_last_day(date):
-    lastDay=calendar.monthrange(date.year, date.month)[1]
-    return date.replace(day=lastDay)
+def get_last_day(d):
+    lastDay=calendar.monthrange(d.year, d.month)[1]
+    return d.replace(day=lastDay)
 
 def get_fiscal_quarters(symbol,fiscal_end,dates):
     try:
@@ -65,55 +68,147 @@ def make_df(dates,statement):
                  #make a dataframe frame from the list comprehension
                 yeardf=pd.merge(yeardf,qtrItems,on='LineItem',how='right')
                 #add the qtr dataframe data to the dataframe for that year
+        yeardf=yeardf.loc[~yeardf['LineItem'].isin(['date','filing_date','currency_symbol'])]
         yeardf['Year']=year #append the year
         df=pd.concat([df,yeardf]) #append to the bottom
     return df
 
-def statements_to_df(symbol,data):
+def statements_to_df_qt(symbol,data):
     statements = data['Financials']
     #Make df for from both quarterly and yearly reports for all statements
     #reportDates for all quarterly statements and all yearly statements match so no need to do it for all 
     BS = statements['Balance_Sheet']['quarterly']
-    reportDates=get_fiscal_quarters(symbol,fiscal_end=data['General']['FiscalYearEnd'],dates=BS.keys())
-    BSDF=make_df(reportDates,BS)
+    try:
+        reportDates=get_fiscal_quarters(symbol,fiscal_end=data['General']['FiscalYearEnd'],dates=BS.keys())
+        BSDF=make_df(reportDates,BS)
 
-    BSyr = statements['Balance_Sheet']['yearly']
-    reportDatesYr=get_fiscal_years(symbol,dates=BSyr.keys())
-    BSyrDF=make_df(reportDatesYr,BSyr)
+        BSyr = statements['Balance_Sheet']['yearly']
+        reportDatesYr=get_fiscal_years(symbol,dates=BSyr.keys())
+        BSyrDF=make_df(reportDatesYr,BSyr)
 
-    BSDF = pd.merge(BSDF,BSyrDF,on=['LineItem','Year'],how='outer')
-    BSDF['StatementType']='Balance_Sheet'
+        BSDF = pd.merge(BSDF,BSyrDF,on=['LineItem','Year'],how='outer')
+        BSDF['StatementType']='Balance_Sheet'
     
-    CF = statements['Cash_Flow']['quarterly']
-    CFDF=make_df(reportDates,CF)
-    CFyr = statements['Cash_Flow']['yearly']
-    CFyrDF=make_df(reportDatesYr,CFyr)    
-    CFDF = pd.merge(CFDF,CFyrDF,on=['LineItem','Year'],how='outer')
-    CFDF['StatementType']='Cash_Flow'
+        CF = statements['Cash_Flow']['quarterly']
+        CFDF=make_df(reportDates,CF)
+        CFyr = statements['Cash_Flow']['yearly']
+        CFyrDF=make_df(reportDatesYr,CFyr)    
+        CFDF = pd.merge(CFDF,CFyrDF,on=['LineItem','Year'],how='outer')
+        CFDF['StatementType']='Cash_Flow'
     
-    IS = statements['Income_Statement']['quarterly']
-    ISDF=make_df(reportDates,IS)
-    ISyr = statements['Income_Statement']['yearly']
-    ISyrDF=make_df(reportDatesYr,ISyr)
-    ISDF = pd.merge(ISDF,ISyrDF,on=['LineItem','Year'],how='outer')
-    ISDF['StatementType']='Income_Statement'
+        IS = statements['Income_Statement']['quarterly']
+        ISDF=make_df(reportDates,IS)
+        ISyr = statements['Income_Statement']['yearly']
+        ISyrDF=make_df(reportDatesYr,ISyr)
+        ISDF = pd.merge(ISDF,ISyrDF,on=['LineItem','Year'],how='outer')
+        ISDF['StatementType']='Income_Statement'
 
-    df=pd.concat([BSDF,CFDF])
-    df['Symbol']=symbol
+        df=pd.concat([BSDF,CFDF,ISDF])
+        df['Symbol']=symbol
 
-    columnsOrder = ['Symbol', 'Year', 'LineItem', 'Q1', 'Q2', 'Q3', 'Q4', 'Yearly', 'StatementType']
-    df = df.reindex(columns=columnsOrder)
+        columnsOrder = ['Symbol', 'Year', 'LineItem', 'Q1', 'Q2', 'Q3', 'Q4', 'Yearly', 'StatementType']
+        df = df.reindex(columns=columnsOrder)
 
-    return df
+        return df
 
-def get_data(symbol='AAPL'):
+    except Exception as err:
+        logging.warning(f'\n{type(err)}\nerror in statements_to_df_qt.\narguments{err.args}')     # arguments stored in .args
+        return err
+
+def get_json_data(symbol='AAPL'):
     with open(f'/home/joseph/InterestingStocks.com/data/{symbol}.json') as json_file:
         return json.load(json_file)
+# %%
+#~~~~helper functions
+def get_market_cap(price, shares): return price*shares
+def get_ROE(income, equity): return income/equity
+def get_PE(price, eps): return price/eps
+def get_dividend_per_share(paid,shares): return paid/shares
+def get_dividend_yield(price, paid): return paid/price
+def get_EPS(earnings, shares): return earnings/shares
+def get_DE(longDebt, shortLong, book): return (longDebt+shortLong)/book
+def get_EPS_growth(newEPS, oldEPS): return (newEPS/oldEPS)-1
+def get_PEG(PE, growth): return PE/growth
+def get_current_ratio(assets, liabilities): return assets/liabilities
+def get_BVPS(equity,shares): return equity/shares
+def get_PB(price, book): return price/book    
+# %%
+month={'January':1,'February':2,'March':3,'April':4,'May':5,'June':6,
+'July':7,'August':8,'September':9,'October':10,'November':11,'December':12}
 
+def get_fiscal_quarter(day,fiscal_end):
+    if isinstance(day,str): day = date.fromisoformat(day)
+    qtr={3:'Q1',6:'Q2',9:'Q3',12:'Q4'}
+    
+    if month.get(fiscal_end) == day.month: return 'Q4'
+
+    return qtr.get((day.month-month.get(fiscal_end))%12)
+
+def create_df(symbol,data,EODdf):
+    statements = data['Financials']
+    #Make df for from both quarterly and yearly reports for all statements
+    #reportDates for all quarterly statements and all yearly statements match so no need to do it for all 
+    
+    BS=pd.DataFrame(statements['Balance_Sheet']['quarterly'].values())
+    CF=pd.DataFrame(statements['Cash_Flow']['quarterly'].values())
+    IS=pd.DataFrame(statements['Income_Statement']['quarterly'].values())
+    EPS = pd.DataFrame(data['Earnings']['History'].values())
+    EPS = EPS[['date', 'epsActual', 'epsEstimate', 'epsDifference', 'surprisePercent']]
+
+    df = pd.merge(BS,CF,on=['date','filing_date','currency_symbol'])
+    df = pd.merge(df,IS,on=['date','filing_date','currency_symbol','netIncome'])
+    df = pd.merge(df,EPS,on=['date'])
+
+    fiscal_end=data['General']['FiscalYearEnd']
+    df['Fiscal_Quarter'] = df['date'].apply(lambda x: get_fiscal_quarter(x,fiscal_end))
+    
+    BSyr = statements['Balance_Sheet']['yearly']
+    CFyr = statements['Cash_Flow']['yearly']
+    ISyr = statements['Income_Statement']['yearly']
+
+    BSyrdf=pd.DataFrame(BSyr.values())
+    CFyrdf=pd.DataFrame(CFyr.values())
+    ISyrdf=pd.DataFrame(ISyr.values())
+    EPSyr = pd.DataFrame(data['Earnings']['Annual'].values())
+    dfyr = pd.merge(BSyrdf,CFyrdf,on=['date','filing_date','currency_symbol'])
+    dfyr = pd.merge(dfyr,ISyrdf,on=['date','filing_date','currency_symbol','netIncome'])
+    dfyr = pd.merge(dfyr,EPSyr,on=['date'])
+
+    dfyr['Fiscal_Quarter'] = 'Yearly'
+    df = pd.concat([df,dfyr])
+
+    df=pd.merge(df,EODdf[['Date','Adjusted_close']],left_on='date',right_on='Date',how='left')
+    df.rename(columns={'Adjusted_close':'Price'},inplace=True)
+
+    ##Convert Strings to datetime & floats in order to get ratios
+    excluded=['date','filing_date','currency_symbol','Q1','Q2','Q3','Q4','Yearly']
+    numeric = [col for col in df.columns if col not in excluded]
+    df[['date','filing_date']] = df[['date','filing_date']].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
+    df[numeric]=df[numeric].apply(pd.to_numeric, errors='ignore')
+
+    df['marketCapitalization'] = df.apply(lambda x: get_market_cap(x['Price'],x['commonStockSharesOutstanding']),axis=1)
+    df['ROE'] = df.apply(lambda x: get_ROE(x['netIncome'],x['commonStockTotalEquity']),axis=1)
+    df.rename(columns={'epsActual':'EPS'},inplace=True)
+    df['PE'] = df.apply(lambda x: get_PE(x['Price'],x['EPS']),axis=1)
+    df['dividends'] = df.apply(lambda x: get_dividend_per_share(x['dividendsPaid'],x['commonStockSharesOutstanding']),axis=1)
+    df['dividendYield'] = df.apply(lambda x: get_dividend_yield(x['Price'],x['dividendsPaid']),axis=1)
+    df['DE'] = df.apply(lambda x: get_DE(x['longTermDebtTotal'],x['shortLongTermDebtTotal'],x['totalStockholderEquity']),axis=1)
+    df['currentRatio'] = df.apply(lambda x: get_current_ratio(x['totalCurrentAssets'],x['totalCurrentLiabilities']),axis=1)
+    df['BVPS'] = df.apply(lambda x: get_BVPS(x['totalStockholderEquity'],x['commonStockSharesOutstanding']),axis=1)
+    df['PB'] = df.apply(lambda x: get_PB(x['Price'],x['BVPS']),axis=1)    
+    return df
+# %%
 if __name__ == "__main__":
-    data = get_data('AAPL')
-    df=statements_to_df('AAPL',data)
-    df.to_csv('aapl.csv')
+#    try:
+        data = get_json_data('AAPL')
+        EODdf = pd.read_csv(f'/home/joseph/InterestingStocks.com/EOD/AAPL.csv')
+        df=create_df('AAPL',data,EODdf)
+        # df=statements_to_df_qt('AAPL',data)
+        # print(df)
+        df.to_csv('aapl.csv')
+#    except Exception as err:
+#        print(f'{err}')
 
     #['Symbol', 'StatementType', 'LineItem', 'FiscalYear', 'Q1', 'Q2', 'Q3', 'Q4', 'Yearly']
     #db = pd.DataFrame(columns=columnNames)
+# %%

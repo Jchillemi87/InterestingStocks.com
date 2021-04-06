@@ -1,5 +1,6 @@
 backup/
 data/
 EOD/
+db/
 obsolete/
 example.log

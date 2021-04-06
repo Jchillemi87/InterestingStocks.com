@@ -39,3 +39,12 @@ totalCurrentAssets
 
 
 
+    -Market Cap Over $50million (Price X Outstanding Shares)
+    -Price/Book Under 2
+    -Dividend Yield >0%
+    -Price/Earning Under 20
+    -Return On Equity >5%
+    -Debt/Equity < 1
+    -Current Ratio > 1.5
+    -Eps Growth This Year >0%
+    -Peg < 2 (Peg = Pe/Ttm Earnings Growth Rate)
