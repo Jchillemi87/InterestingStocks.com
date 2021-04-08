@@ -128,7 +128,7 @@ def get_dividend_yield(price, paid): return (paid/price) if price != 0 else 0
 def get_EPS(earnings, shares): return (earnings/shares) if shares != 0 else 0
 def get_DE(longDebt, shortLong, book): return ((longDebt+shortLong)/book) if book != 0 else 0
 def get_EPS_growth(newEPS, oldEPS): return (newEPS/oldEPS)-1 if oldEPS != 0 else 0
-def get_PEG(PE, growth): return (PE/growth) if growth != 0 else 0
+def get_PEG(PE, growth): return (PE/(growth*100)) if growth != 0 else 0
 def get_current_ratio(assets, liabilities): return (assets/liabilities) if liabilities != 0 else 0
 def get_BVPS(equity,shares): return (equity/shares) if shares != 0 else 0 
 def get_PB(price, book): return (price/book) if book != 0 else 0
@@ -179,25 +179,23 @@ def create_df(symbol,data,EODdf):
     EODdf.rename(columns={'Date':'date'},inplace=True)
     df=pd.merge(df,EODdf[['date','Adjusted_close']],on=['date'],how='left')
     df.rename(columns={'Adjusted_close':'Price'},inplace=True)
-    try:
-        ##Convert Strings to datetime & floats in order to get ratios
-        excluded=['date','filing_date','currency_symbol','Q1','Q2','Q3','Q4','Yearly']
-        numeric = [col for col in df.columns if col not in excluded]
-        df[['date','filing_date']] = df[['date','filing_date']].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
-        df[numeric]=df[numeric].apply(pd.to_numeric, errors='ignore')
+    ##Convert Strings to datetime & floats in order to get ratios
+    excluded=['date','filing_date','currency_symbol','Q1','Q2','Q3','Q4','Yearly']
+    numeric = [col for col in df.columns if col not in excluded]
+    df[['date','filing_date']] = df[['date','filing_date']].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
+    df[numeric]=df[numeric].apply(pd.to_numeric, errors='ignore')
 
-        df['marketCapitalization'] = df.apply(lambda x: get_market_cap(x['Price'],x['commonStockSharesOutstanding']),axis=1)
-        df['ROE'] = df.apply(lambda x: get_ROE(x['netIncome'],x['commonStockTotalEquity']),axis=1)
-        df.rename(columns={'epsActual':'EPS'},inplace=True)
-        df['PE'] = df.apply(lambda x: get_PE(x['Price'],x['EPS']),axis=1)
-        df['dividends'] = df.apply(lambda x: get_dividend_per_share(x['dividendsPaid'],x['commonStockSharesOutstanding']),axis=1)
-        df['dividendYield'] = df.apply(lambda x: get_dividend_yield(x['Price'],x['dividendsPaid']),axis=1)
-        df['DE'] = df.apply(lambda x: get_DE(x['longTermDebtTotal'],x['shortLongTermDebtTotal'],x['totalStockholderEquity']),axis=1)
-        df['currentRatio'] = df.apply(lambda x: get_current_ratio(x['totalCurrentAssets'],x['totalCurrentLiabilities']),axis=1)
-        df['BVPS'] = df.apply(lambda x: get_BVPS(x['totalStockholderEquity'],x['commonStockSharesOutstanding']),axis=1)
-        df['PB'] = df.apply(lambda x: get_PB(x['Price'],x['BVPS']),axis=1)
-    except Exception as err:
-        print(err)
+    df['marketCapitalization'] = df.apply(lambda x: get_market_cap(x['Price'],x['commonStockSharesOutstanding']),axis=1)
+    df['ROE'] = df.apply(lambda x: get_ROE(x['netIncome'],x['commonStockTotalEquity']),axis=1)
+    df.rename(columns={'epsActual':'EPS'},inplace=True)
+    df['PE'] = df.apply(lambda x: get_PE(x['Price'],x['EPS']),axis=1)
+    df['dividends'] = df.apply(lambda x: get_dividend_per_share(x['dividendsPaid'],x['commonStockSharesOutstanding']),axis=1)
+    df['dividendYield'] = df.apply(lambda x: get_dividend_yield(x['Price'],x['dividendsPaid']),axis=1)
+    df['DE'] = df.apply(lambda x: get_DE(x['longTermDebtTotal'],x['shortLongTermDebtTotal'],x['totalStockholderEquity']),axis=1)
+    df['currentRatio'] = df.apply(lambda x: get_current_ratio(x['totalCurrentAssets'],x['totalCurrentLiabilities']),axis=1)
+    df['BVPS'] = df.apply(lambda x: get_BVPS(x['totalStockholderEquity'],x['commonStockSharesOutstanding']),axis=1)
+    df['PB'] = df.apply(lambda x: get_PB(x['Price'],x['BVPS']),axis=1)
+
     ##Determine Growth from one quarter to another
     mask = df['Fiscal_Quarter'] != 'Yearly'
     df.loc[mask,'EPS_growth'] = df[mask]['EPS'].pct_change(periods=-4)
@@ -205,25 +203,9 @@ def create_df(symbol,data,EODdf):
     ##Determine Growth from one year to next
     mask = df['Fiscal_Quarter'] == 'Yearly'
     df.loc[mask,'EPS_growth'] = df[mask]['EPS'].pct_change(periods=-1)
-
-    try:
-        df['PEG']=df['PE']/(df['EPS_growth']*100)
-    except ZeroDivisionError:
-        return 0
+    
+    df['PEG']=df.apply(lambda x: get_PEG(x['PE'],x['EPS_growth']),axis=1)
 
     return df
-# %%
-if __name__ == "__main__":
-#    try:
-        data = get_json_data('CCL')
-        EODdf = pd.read_csv(f'/home/joseph/InterestingStocks.com/EOD/CCL.csv')
-        df=create_df('CCL',data,EODdf)
-        # df=statements_to_df_qt('AAPL',data)
-        # print(df)
-        df.to_csv('CCL.csv')
-#    except Exception as err:
-#        print(f'{err}')
 
-    #['Symbol', 'StatementType', 'LineItem', 'FiscalYear', 'Q1', 'Q2', 'Q3', 'Q4', 'Yearly']
-    #db = pd.DataFrame(columns=columnNames)
 # %%

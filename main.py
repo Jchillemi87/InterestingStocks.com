@@ -96,13 +96,13 @@ eodMiss=symbols-eodFiles
 # %%
 user = 'root'
 password = 'root_password'
-#host = '192.168.1.201'
-host = '127.0.0.1'
+host = '192.168.1.201'
+#host = '127.0.0.1'
 port = '3306'
 
 def engine(database):
-    #return create_engine(f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}', pool_pre_ping=True)
-    return create_engine(f'mariadb:///?{user}:{password}@{host}:{port}/{database}', pool_pre_ping=True)
+    return create_engine(f'mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}', pool_pre_ping=True)
+    #return create_engine(f'mariadb+mysqlconnector://{user}:{password}@{host}:{port}/{database}', pool_pre_ping=True)
 
 def csv_to_df(symbol='AAPL',folder='/home/joseph/InterestingStocks.com/db/'):
     df=pd.read_csv(f'{folder}{symbol}.csv')
@@ -123,11 +123,7 @@ def df_to_mysql(df,symbol='AAPL',dbName = 'InterestingStocksFundamentals'):
     
 # %%
 def state_to_df(symbol='AAPL'):
-    try:
-        data=get_json_data(symbol)
-    except Exception as err:
-        print(f'err')
-        return err
+    data=get_json_data(symbol)
     EODdf = pd.read_csv(f'/home/joseph/InterestingStocks.com/EOD/{symbol}.csv')
     return create_df(symbol,data,EODdf)
         #df.to_csv(f'./db/{symbol}.csv',index=False)
@@ -135,11 +131,7 @@ def state_to_df(symbol='AAPL'):
     logging.warning(f'\n{type(err)}\nerror in state_to_df\narguments{err.args}')
 
 def state_to_mysql(symbol):
-    try:
-        df=state_to_df(symbol)
-    except Exception as err:
-        logging.warning(f'\n{type(err)}\nerror in state_to_mysql\narguments{err}')
-        return
+    df=state_to_df(symbol)
     #df.to_csv(f'./db/{symbol}.csv',index=False)
     df_to_mysql(df,symbol=symbol)
 
@@ -169,7 +161,8 @@ def update():
 
     dbFiles = get_files(f'/home/joseph/InterestingStocks.com/db')
     dbMissing=dataFiles-dbFiles
-    dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
+    #dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
+    dbMissing=dataMiss=['CCL']
     with alive_bar(len(dbMissing), title='dbMissing', spinner='waves') as bar:
         for symbol in dbMissing:
             t = threading.Thread(target=state_to_mysql, args=(symbol,))
