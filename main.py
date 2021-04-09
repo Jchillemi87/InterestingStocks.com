@@ -96,8 +96,8 @@ eodMiss=symbols-eodFiles
 # %%
 user = 'root'
 password = 'root_password'
-host = '192.168.1.201'
-#host = '127.0.0.1'
+#host = '192.168.1.201'
+host = '127.0.0.1'
 port = '3306'
 
 def engine(database):
@@ -109,7 +109,8 @@ def csv_to_df(symbol='AAPL',folder='/home/joseph/InterestingStocks.com/db/'):
     return df
 
 def df_to_mysql(df,symbol='AAPL',dbName = 'InterestingStocksFundamentals'):
-    df.to_sql(name = symbol, con = engine(dbName), if_exists = 'replace', index = False)
+    #df.to_sql(name = symbol, con = engine(dbName), if_exists = 'replace', index = False)
+    df.to_sql(name = 'Fundamentals', con = engine(dbName), if_exists = 'append', index = False)
     # ,dtype={
     #     'Symbol': String(10),
     #     'LineItem': Text,
@@ -132,7 +133,7 @@ def state_to_df(symbol='AAPL'):
 
 def state_to_mysql(symbol):
     df=state_to_df(symbol)
-    #df.to_csv(f'./db/{symbol}.csv',index=False)
+    #df.to_csv(f'/home/joseph/InterestingStocks.com/db/{symbol}.csv',index=False)
     df_to_mysql(df,symbol=symbol)
 
 def update():
@@ -148,13 +149,7 @@ def update():
     #             t.start()
     #         bar()
 
-    # api_limiter=150000
-    # dataFiles = get_files('./data')
-    # eodMiss=dataFiles-eodFiles
-    # with alive_bar(len(eodMiss), title='eodMiss', spinner='waves') as bar:
-    #     for symbol in eodMiss:
-    #         if(api_limiter>0):
-    #             api_limiter-=1
+    # api_lim/home/joseph/InterestingStocks.com/data/     api_limiter-=1
     #             t = threading.Thread(target=get_eod_data, args=(symbol,))
     #             t.start()
     #         bar()
@@ -162,7 +157,7 @@ def update():
     dbFiles = get_files(f'/home/joseph/InterestingStocks.com/db')
     dbMissing=dataFiles-dbFiles
     #dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
-    dbMissing=dataMiss=['CCL']
+    dbMissing=dataMiss=['FL']
     with alive_bar(len(dbMissing), title='dbMissing', spinner='waves') as bar:
         for symbol in dbMissing:
             t = threading.Thread(target=state_to_mysql, args=(symbol,))

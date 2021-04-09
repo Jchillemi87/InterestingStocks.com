@@ -17,6 +17,19 @@ from pandas.core.tools import numeric
 logging.basicConfig(filename='example.log', encoding='utf-8')
 
 # %%
+def get_last_price(d,EODdf):
+    if d in EODdf['date']: return EODdf.loc[EODdf['date']==d]['Adjusted_close']
+    day = datetime.fromisoformat(d)
+    dates = pd.to_datetime(EODdf['date'])
+    last = day+relativedelta(days=-10) #if we can't find a price within the last 10 days, just give up
+
+    while (day not in dates) & (day >= last):
+        day=day+relativedelta(days=-1)
+
+    if day < last: return None
+    day = day.isoformat()
+    return EODdf.loc[EODdf['date']==day]['Adjusted_close']
+
 def get_last_day(d):
     lastDay=calendar.monthrange(d.year, d.month)[1]
     return d.replace(day=lastDay)
@@ -179,6 +192,10 @@ def create_df(symbol,data,EODdf):
     EODdf.rename(columns={'Date':'date'},inplace=True)
     df=pd.merge(df,EODdf[['date','Adjusted_close']],on=['date'],how='left')
     df.rename(columns={'Adjusted_close':'Price'},inplace=True)
+
+    emptyPrices=df['Price'].isna()
+    df.loc[emptyPrices,'Price'] = df.apply(lambda x: get_last_price(x['date'],EODdf),axis=1)
+
     ##Convert Strings to datetime & floats in order to get ratios
     excluded=['date','filing_date','currency_symbol','Q1','Q2','Q3','Q4','Yearly']
     numeric = [col for col in df.columns if col not in excluded]
@@ -205,6 +222,9 @@ def create_df(symbol,data,EODdf):
     df.loc[mask,'EPS_growth'] = df[mask]['EPS'].pct_change(periods=-1)
     
     df['PEG']=df.apply(lambda x: get_PEG(x['PE'],x['EPS_growth']),axis=1)
+    df['symbol']
+
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
     return df
 
