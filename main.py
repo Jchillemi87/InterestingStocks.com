@@ -178,7 +178,7 @@ def update():
             t.start()
             t.join()
             bar()
-    fundsDB.to_csv('/home/joseph/InterestingStocks.com/FundamentalsDB',index=False)
+    fundsDB.to_csv('/home/joseph/InterestingStocks.com/FundamentalsDB.csv',index=False)
     #df_to_mysql(fundsDB)   
     
 
