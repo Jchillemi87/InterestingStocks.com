@@ -169,7 +169,7 @@ def update():
 
     dbFiles = get_files(f'/home/joseph/InterestingStocks.com/db')
     dbMissing=dataFiles-dbFiles
-    #dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
+    dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
     #dbMissing=dataMiss=['FL']
     with alive_bar(len(dbMissing), title='dbMissing', spinner='waves') as bar:
         for symbol in dbMissing:
@@ -178,7 +178,8 @@ def update():
             t.start()
             t.join()
             bar()
-    df_to_mysql(fundsDB)   
+    fundsDB.to_csv('/home/joseph/InterestingStocks.com/FundamentalsDB',index=False)
+    #df_to_mysql(fundsDB)   
     
 
 # %%
