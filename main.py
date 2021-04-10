@@ -2,6 +2,7 @@
 # To add a new markdown cell, type '# %% [markdown]'
 # %%
 import pandas as pd
+from pandas.core.frame import DataFrame
 
 from sqlalchemy import create_engine
 from sqlalchemy.types import Text, String, SmallInteger, Numeric
@@ -87,7 +88,7 @@ def get_eod_data(symbol='AAPL', api_token=api_key):
         return err
 
 # %%
-tickersdf=pd.read_csv('US_LIST_OF_SYMBOLS.csv')
+tickersdf=pd.read_csv('/home/joseph/InterestingStocks.com/US_LIST_OF_SYMBOLS.csv')
 symbols=set(tickersdf.loc[tickersdf['Type']=='Common Stock',['Code']]['Code'])
 dataFiles = get_files('/home/joseph/InterestingStocks.com/data')
 eodFiles = get_files('/home/joseph/InterestingStocks.com/EOD')
@@ -108,9 +109,9 @@ def csv_to_df(symbol='AAPL',folder='/home/joseph/InterestingStocks.com/db/'):
     df=pd.read_csv(f'{folder}{symbol}.csv')
     return df
 
-def df_to_mysql(df,symbol='AAPL',dbName = 'InterestingStocksFundamentals'):
+def df_to_mysql(df,n='Fundamentals',dbName = 'InterestingStocksFundamentals'):
     #df.to_sql(name = symbol, con = engine(dbName), if_exists = 'replace', index = False)
-    df.to_sql(name = 'Fundamentals', con = engine(dbName), if_exists = 'append', index = False)
+    df.to_sql(name = n, con = engine(dbName), if_exists = 'append', index = False)
     # ,dtype={
     #     'Symbol': String(10),
     #     'LineItem': Text,
@@ -136,6 +137,18 @@ def state_to_mysql(symbol):
     #df.to_csv(f'/home/joseph/InterestingStocks.com/db/{symbol}.csv',index=False)
     df_to_mysql(df,symbol=symbol)
 
+global fundsDB
+fundsDB = pd.DataFrame()
+
+def build_funds_db(symbol):
+    try:
+        df=state_to_df(symbol)
+    except Exception as err:
+        logging.warning(f'\n{type(err)}\nerror in state_to_df\narguments{err.args}')
+        return
+    global fundsDB
+    fundsDB = pd.concat([fundsDB,df])
+
 def update():
 #    get_fundamentals_data(symbol='aapl')
     api_limiter=150000
@@ -157,12 +170,17 @@ def update():
     dbFiles = get_files(f'/home/joseph/InterestingStocks.com/db')
     dbMissing=dataFiles-dbFiles
     #dbMissing=dataMiss=['KSS','WLKP','FL','DAL','MO','CCL','T','TPR','PFG','WFC']
-    dbMissing=dataMiss=['FL']
+    #dbMissing=dataMiss=['FL']
     with alive_bar(len(dbMissing), title='dbMissing', spinner='waves') as bar:
         for symbol in dbMissing:
-            t = threading.Thread(target=state_to_mysql, args=(symbol,))
+            t = threading.Thread(target=build_funds_db, args=(symbol,))
+            #t = threading.Thread(target=state_to_mysql, args=(symbol,))
             t.start()
+            t.join()
             bar()
+    df_to_mysql(fundsDB)   
+    
+
 # %%
 if __name__ == '__main__':
     update()
@@ -191,4 +209,3 @@ if __name__ == '__main__':
 
 # loop = asyncio.get_event_loop()
 # loop.run_until_complete(mainReadFiles())
-# %%

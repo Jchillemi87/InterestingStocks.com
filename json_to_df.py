@@ -20,15 +20,18 @@ logging.basicConfig(filename='example.log', encoding='utf-8')
 def get_last_price(d,EODdf):
     if d in EODdf['date']: return EODdf.loc[EODdf['date']==d]['Adjusted_close']
     day = datetime.fromisoformat(d)
-    dates = pd.to_datetime(EODdf['date'])
+    dates = EODdf['date'].tolist()
+    dates = [datetime.fromisoformat(D) for D in dates]
     last = day+relativedelta(days=-10) #if we can't find a price within the last 10 days, just give up
-
+    
     while (day not in dates) & (day >= last):
         day=day+relativedelta(days=-1)
 
     if day < last: return None
+    day = day.date()
     day = day.isoformat()
-    return EODdf.loc[EODdf['date']==day]['Adjusted_close']
+    lastPrice = EODdf.loc[EODdf['date']==day]['Adjusted_close'].max()
+    return lastPrice
 
 def get_last_day(d):
     lastDay=calendar.monthrange(d.year, d.month)[1]
@@ -195,7 +198,6 @@ def create_df(symbol,data,EODdf):
 
     emptyPrices=df['Price'].isna()
     df.loc[emptyPrices,'Price'] = df.apply(lambda x: get_last_price(x['date'],EODdf),axis=1)
-
     ##Convert Strings to datetime & floats in order to get ratios
     excluded=['date','filing_date','currency_symbol','Q1','Q2','Q3','Q4','Yearly']
     numeric = [col for col in df.columns if col not in excluded]
@@ -222,9 +224,9 @@ def create_df(symbol,data,EODdf):
     df.loc[mask,'EPS_growth'] = df[mask]['EPS'].pct_change(periods=-1)
     
     df['PEG']=df.apply(lambda x: get_PEG(x['PE'],x['EPS_growth']),axis=1)
-    df['symbol']
-
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    df['symbol'] = symbol
 
     return df
 
